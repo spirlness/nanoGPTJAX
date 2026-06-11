@@ -18,7 +18,7 @@ We follow the standard Transformer architecture, with the following choices:
 - RoPE
 - QK-Norm
 - Logits soft-capping
-- ReLU-squared activations in the MLP (will be replaced with SwiGLU soon)
+- ReLU-squared activations in the MLP/SwiGLU
 - RMSNorm without learnable parameters
 - Muon/AdamW
 
