@@ -20,7 +20,7 @@ We follow the standard Transformer architecture, with the following choices:
 - Logits soft-capping
 - ReLU-squared activations in the MLP (will be replaced with SwiGLU soon)
 - RMSNorm without learnable parameters
-- (Optional) weight decay
+- Muon/AdamW
 
 The models here can be trained with both `AdamW` and `Muon` optimizers (via Optax). You can use any sharding strategy depending on the size of the model. We use the cached, tokenized **FineWeb10B** dataset as in [modded-nanogpt](https://github.com/KellerJordan/modded-nanogpt).
 
