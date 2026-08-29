@@ -56,12 +56,20 @@ def make_tiny_model(*, seqlen=8, window_pattern="L", local_window_size=None):
     return params, cfg
 
 
-def full_logits(params, tokens):
-    positions = jnp.arange(tokens.shape[1], dtype=jnp.int32)[None, :]
-    freqs = precompute_frequencies(
-        positions, features=params.blocks[0].attn.head_dim, dtype=jnp.float32
-    )
-    return forward(params, tokens, segment_ids=None, freqs=freqs)
+def full_logits(params, tokens, mesh):
+    with jax.set_mesh(mesh):
+        positions = jnp.arange(tokens.shape[1], dtype=jnp.int32)[None, :]
+        freqs = precompute_frequencies(
+            positions, features=params.blocks[0].attn.head_dim, dtype=jnp.float32
+        )
+        return forward(params, tokens, segment_ids=None, freqs=freqs)
+
+
+def cached_logits(params, tokens, segment_ids, cache, cfg):
+    with jax.set_mesh(cfg.mesh):
+        return forward_infer(
+            params, tokens, segment_ids, cache, cfg.model.attn.head_dim
+        )
 
 
 class KVCacheConsistencyTest(unittest.TestCase):
@@ -76,20 +84,20 @@ class KVCacheConsistencyTest(unittest.TestCase):
         segment_ids = jnp.ones_like(prompt)
         cache = KVCache.init(jax.random.key(1), cfg.mesh, cfg.rules, 1, cfg)
 
-        cached_logits, cache = forward_infer(
-            params, prompt, segment_ids, cache, cfg.model.attn.head_dim
+        cached_prefill_logits, cache = cached_logits(
+            params, prompt, segment_ids, cache, cfg
         )
-        self.assert_logits_close(cached_logits, full_logits(params, prompt))
+        self.assert_logits_close(
+            cached_prefill_logits, full_logits(params, prompt, cfg.mesh)
+        )
 
         next_token = jnp.array([[9]], dtype=jnp.int32)
-        cached_next_logits, _ = forward_infer(
-            params,
-            next_token,
-            jnp.ones_like(next_token),
-            cache,
-            cfg.model.attn.head_dim,
+        cached_next_logits, _ = cached_logits(
+            params, next_token, jnp.ones_like(next_token), cache, cfg
         )
-        reference = full_logits(params, jnp.concatenate([prompt, next_token], axis=1))
+        reference = full_logits(
+            params, jnp.concatenate([prompt, next_token], axis=1), cfg.mesh
+        )
         self.assert_logits_close(cached_next_logits[:, -1], reference[:, -1])
 
     def test_ring_buffer_decode_matches_full_local_attention_after_wraparound(self):
@@ -100,27 +108,17 @@ class KVCacheConsistencyTest(unittest.TestCase):
         )
         prefix = jnp.array([[2, 5]], dtype=jnp.int32)
         cache = KVCache.init(jax.random.key(2), cfg.mesh, cfg.rules, 1, cfg)
-        _, cache = forward_infer(
-            params,
-            prefix,
-            jnp.ones_like(prefix),
-            cache,
-            cfg.model.attn.head_dim,
-        )
+        _, cache = cached_logits(params, prefix, jnp.ones_like(prefix), cache, cfg)
 
         sequence = prefix
         for token_id in (6, 8, 11, 13, 17):
             token = jnp.array([[token_id]], dtype=jnp.int32)
-            cached_logits, cache = forward_infer(
-                params,
-                token,
-                jnp.ones_like(token),
-                cache,
-                cfg.model.attn.head_dim,
+            cached_step_logits, cache = cached_logits(
+                params, token, jnp.ones_like(token), cache, cfg
             )
             sequence = jnp.concatenate([sequence, token], axis=1)
-            reference = full_logits(params, sequence)
-            self.assert_logits_close(cached_logits[:, -1], reference[:, -1])
+            reference = full_logits(params, sequence, cfg.mesh)
+            self.assert_logits_close(cached_step_logits[:, -1], reference[:, -1])
 
         self.assertGreater(int(cache.end), cfg.model.seqlen)
 
