@@ -18,9 +18,9 @@ We follow the standard Transformer architecture, with the following choices:
 - RoPE
 - QK-Norm
 - Logits soft-capping
-- ReLU-squared activations in the MLP (will be replaced with SwiGLU soon)
+- ReLU-squared activations in the MLP/SwiGLU
 - RMSNorm without learnable parameters
-- (Optional) weight decay
+- Muon/AdamW
 
 The models here can be trained with both `AdamW` and `Muon` optimizers (via Optax). You can use any sharding strategy depending on the size of the model. We use the cached, tokenized **FineWeb10B** dataset as in [modded-nanogpt](https://github.com/KellerJordan/modded-nanogpt).
 
@@ -29,15 +29,15 @@ The models here can be trained with both `AdamW` and `Muon` optimizers (via Opta
 
 - [x] Minimal abstraction for defining layers and models
 - [x] Pretrain a GPT-2-like model on FineWeb 10B tokens
-- [x] Inference
+- [x] Inference and KVCache
 - [x] Cautious Weight Decay
 - [x] Chunked Cross Entropy
 - [x] Mid-training
 - [x] Supervised fine-tuning on a dataset
+- [x] RoPE-NoPE (local-global attention) pattern
+- [x] Post Training Quantization (Weights only int8 quantization for now)
 - [ ] Reinforcement learning on a dataset
 - [ ] Speculative Decoding
-- [ ] Leaderboard to track run time for convergence wrt tricks
-- [ ] Quantization
 - [ ] MoE example
 
 <br>
