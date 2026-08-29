@@ -75,7 +75,9 @@ def cached_logits(params, tokens, segment_ids, cache, cfg):
 class KVCacheConsistencyTest(unittest.TestCase):
     def assert_logits_close(self, actual, expected):
         np.testing.assert_allclose(
-            np.asarray(actual), np.asarray(expected), rtol=2e-5, atol=2e-5
+            # Cache and full attention use different, but numerically valid,
+            # contraction orders. CPU JAX can differ by a few 1e-5 here.
+            np.asarray(actual), np.asarray(expected), rtol=1e-4, atol=1e-4
         )
 
     def test_prefill_and_single_token_decode_match_full_attention(self):
