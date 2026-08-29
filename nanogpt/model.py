@@ -511,7 +511,14 @@ def block_forward_infer(
 def forward_infer(params, x, segment_ids, cache, head_dim):
     chunk_len = jnp.asarray(x.shape[1], dtype=cache.end.dtype)
     q_segment_ids = jnp.where(segment_ids != 0, 1, 0).astype(jnp.int32)
-    positions = segment_ids_to_positions(segment_ids) + cache.fill_len()[:, None]
+    # `fill_len()` is capped at cache capacity, so it cannot represent the
+    # logical position once the circular buffer wraps. Keep query positions in
+    # the same left-padding-relative, absolute coordinate system as KV slots.
+    positions = (
+        segment_ids_to_positions(segment_ids)
+        + cache.end
+        - cache.left_pad[:, None]
+    )
 
     with jax.named_scope("embedding"):
         x = embedding_forward(params.embed, x)
